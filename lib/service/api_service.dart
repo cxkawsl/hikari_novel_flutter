@@ -334,8 +334,16 @@ class _ApiClient {
     if (response.statusCode != null && response.statusCode! >= 300 && response.statusCode! < 400) {
       final location = response.headers.value('location');
       if (location != null) {
+        // 登录墙：站点把需要登录的页面重定向到 login.php，这不是 Cloudflare 拦截
+        if (location.contains("login.php")) {
+          throw LoginRequiredException(requestOptions: response.requestOptions);
+        }
         final node = LocalStorageService.instance.getWenku8Node();
-        final redirectedResponse = await dio.get("${node.node}/$location");
+        // location 可能是绝对地址（https://...），也可能是相对路径（/xxx）
+        // 旧代码无条件拼接节点前缀，会把绝对地址拼成非法 URL
+        final uri = Uri.tryParse(location);
+        final target = (uri != null && uri.hasScheme) ? location : "${node.node}/$location";
+        final redirectedResponse = await dio.get(target);
         return redirectedResponse.data;
       }
     }
